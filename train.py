@@ -1,6 +1,7 @@
 from inference import inference
 from input import input, start_enqueue_thread, create_queue
 import tensorflow as tf
+import utils
 import os
 import time
 
@@ -14,18 +15,24 @@ def loss(hypes, logits, labels):
     :return: the scaler tensor expected to be promoted
     """
     #logits[i,j,label[i,j]]
-    masked = tf.boolean_mask(logits,labels)
-    shape = masked.get_shape()
-    log = tf.log(tf.reshape(masked, shape[:2]))
+    ms = hypes['arch']['maxstr']
+    dl = hypes['arch']['dictlen']
+    bl = []
+    for batch in range(hypes['solver']['batch_size']):
+        l = [tf.boolean_mask(logits[batch,ch,:],labels[batch,ch,:]) for ch in range(ms)]
+        bl.append(l)
+    masked = tf.convert_to_tensor(bl)
+    log = tf.log(masked)
     return tf.reduce_mean(tf.reduce_sum(log, axis=1))
 
 def build_train_graph(hypes, images, labels):
     pred = inference(hypes,images, phase = 'train')
     obj = loss(hypes, pred, labels)
     vars = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES)
-    var_grads = tf.gradients(obj, vars)
     lr = tf.placeholder(dtype=tf.float32)
-    opt = tf.train.AdamOptimizer(lr).apply_gradients(zip(var_grads, vars))
+    optimazer = tf.train.AdamOptimizer(lr)
+    var_grads = tf.gradients(obj, vars)
+    opt = optimazer.apply_gradients(zip(var_grads, vars))
 
     train_graph = {}
     train_graph['train_op'] = opt
@@ -50,11 +57,11 @@ def _print_training_status(hypes, step, loss_value, start_time, lr):
                                  examples_per_sec=examples_per_sec)
                  )
 
-def _print_eval_dict(eval_names, eval_results, prefix=''):
-    print_str = string.join([nam + ": %.2f" for nam in eval_names],
-                            ', ')
-    print_str = "   " + prefix + "  " + print_str
-    logging.info(print_str % tuple(eval_results))
+# def _print_eval_dict(eval_names, eval_results, prefix=''):
+#     print_str = string.join([nam + ": %.2f" for nam in eval_names],
+#                             ', ')
+#     print_str = "   " + prefix + "  " + print_str
+#     logging.info(print_str % tuple(eval_results))
 
 def run_training(hypes, graph, sess):
     display_iter = hypes['logging']['display_iter']
@@ -65,8 +72,6 @@ def run_training(hypes, graph, sess):
     #start clock
     start_time = time.time()
     for step in range(hypes['train']['steps']):
-        result = session.run([graph['train_op']], feed_dict=feed_dict)
-        logging.info('')
         if step % display_iter:
             sess.run([graph['train_op']], feed_dict=feed_dict)
 
@@ -93,10 +98,15 @@ def run_training(hypes, graph, sess):
 
 import json
 import logging
-import utils
+
 if __name__ == '__main__':
-    with open('.json', mode='r') as f:
+    with open('hyperparameters.json', mode='r') as f:
         hypes = json.load(f)
+    folder = hypes['dirs']['output_dir']
+    weightspath = os.path.join(os.getcwd(), folder)
+    if not os.path.exists(weightspath):
+        os.makedirs(weightspath)
+    hypes['dirs']['output_dir'] = weightspath
     q = create_queue(hypes)
     img, lab = input(hypes, q, 'train')
     train_graph = build_train_graph(hypes, img, lab)

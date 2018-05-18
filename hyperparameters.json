@@ -1,0 +1,21 @@
+{
+  "arch": {
+    "maxstr": 69,
+    "dictlen": 2235
+  },
+  "solver": {
+    "batch_size": 32,
+    "max_steps": 12000,
+    "learning_rate": 0.001
+  },
+  "logging": {
+    "disp_iter": 20,
+    "save_iter": 2000
+  },
+  "dirs": {
+    "output_dir": "RUNS",
+    "data_dir": "Data"
+  },
+  "width": 200,
+  "height": 40
+}

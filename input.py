@@ -8,17 +8,17 @@ import pickle
 import os
 
 def get_dict():
-    with open('Data/labels.txt', 'r', encoding='utf-8') as f:
+    with open('Data/labels.txt', 'r') as f:
         dic = {}
         dataset = f.read()
-        sample_pairs = dataset.split('\r\n')
+        sample_pairs = dataset.split('\n')
         max_len = 0
         for pair in sample_pairs:
             image_idx, label = pair.split('    ')
             if len(label) > max_len:
                 max_len = len(label)
             for ch in label:
-                if not dic.has_key(ch):
+                if not ch in dic:
                     dic.update({ch: len(dic)})
         return max_len, dic
 
@@ -35,40 +35,44 @@ def _load_data(filedir = 'Data'):
             yield image, label
 
 def _preprocessing(hypes):
-    def encode_chars(dic, string, maxlen):
-        class_length = len(dic) + 1 #add one more catergory which indicates "no char found"
+    def encode_chars(string, dic, maxlen):
+        class_length = len(dic)#add one more catergory which indicates "no char found"
         strlen = len(string)
         lst = None
         for ch in range(maxlen):
             if ch < strlen:
-                num = dic[string[ch]] if dic.has_key(string[ch]) else class_length - 1
+                num = dic[string[ch]] if string[ch] in dic else 32
+                #print(string[ch], list(dic.keys())[num])
             else:
-                num = class_length - 1
+                num = 32
             curr = np.array([True if i == num else False for i in range(class_length)])
             if lst is None:
                 lst = curr
             else:
-                np.vstack((lst, curr))
+                lst = np.vstack((lst, curr))
+        return lst
 
     def process_image(img):
         #substract mean
         image = img - np.mean(img)
         #resize
         return smi.imresize(image, (40, 200))
-    with open('','r') as f:
+    with open('dictionary.dat','rb') as f:
         dic = pickle.load(f)
-    maxlen = hypes['arch']['maxlen']
-    for pair in _load_data():
+    maxlen = hypes['arch']['maxstr']
+    data_path = os.path.join(os.getcwd(), hypes['dirs']['data_dir'])
+    for pair in _load_data(data_path):
         image, label = pair
         enc_label = encode_chars(label, dic, maxlen)
         proc_img = process_image(image)
         yield proc_img, enc_label
 
 def create_queue(hypes):
-    height = hypes['']
-    width = hypes['']
-    shape = [[height, width, 1], [4000]]
-    q = tf.FIFOQueue(capacity=50, dtypes=[tf.float32, tf.int32], shapes=shape)
+    height = hypes['height']
+    width = hypes['width']
+    s, cn = hypes['arch']['maxstr'], hypes['arch']['dictlen']
+    shape = [[height, width, 1], [s,cn]]
+    q = tf.FIFOQueue(capacity=50, dtypes=[tf.float32, tf.bool], shapes=shape)
     return q
 
 def start_enqueue_thread(hypes,q, sess):
@@ -91,7 +95,7 @@ def input(hypes, q, phase):
         label = tf.expand_dims(label, 0)
         return image, label
     elif phase == 'train':
-        image, label = q.dqueue_many(hypes['solve']['batch_size'],)
+        image, label = q.dequeue_many(hypes['solver']['batch_size'],)
         # Display the training images in the visualizer.
         tensor_name = image.op.name
         tf.summary.image(tensor_name + '/image', image)
@@ -101,7 +105,17 @@ def input(hypes, q, phase):
     return image, label
 
 if __name__ == '__main__':
-    a,d = get_dict()
-    with open('Data/dictionary.dat', 'wb') as f:
-        pickle.dump(d, f)
-    print(a)
+    # if not os.path.exists('dictionary.dat'):
+    # a,d = get_dict()
+    # with open('dictionary.dat', 'wb') as f:
+    #     pickle.dump(d, f)
+    # print('Max string length:', a)
+    import json
+    import matplotlib.pyplot as plt
+    with open('hyperparameters.json', 'r') as f:
+        hypes = json.load(f)
+    for pair in _preprocessing(hypes):
+        plt.imshow(np.uint8(pair[0]))
+        plt.show()
+
+
