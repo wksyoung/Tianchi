@@ -13,8 +13,9 @@ def get_dict():
         dataset = f.read()
         sample_pairs = dataset.split('\n')
         max_len = 0
-        for pair in sample_pairs:
+        for pair in sample_pairs[:-1]:
             image_idx, label = pair.split('    ')
+            print(image_idx)
             if len(label) > max_len:
                 max_len = len(label)
             for ch in label:
@@ -42,7 +43,7 @@ def _preprocessing(hypes):
         for ch in range(maxlen):
             if ch < strlen:
                 num = dic[string[ch]] if string[ch] in dic else 32
-                #print(string[ch], list(dic.keys())[num])
+                #print(string[ch], list(dic.keys())[list(dic.values()).index(num)])
             else:
                 num = 32
             curr = np.array([True if i == num else False for i in range(class_length)])
@@ -55,8 +56,11 @@ def _preprocessing(hypes):
     def process_image(img):
         #substract mean
         image = img - np.mean(img)
+        if image.shape[0] > image.shape[1]:
+            np.rot90(image)
         #resize
-        return smi.imresize(image, (40, 200))
+        image = smi.imresize(image, (40, 200))
+        return np.expand_dims(image, 2)
     with open('dictionary.dat','rb') as f:
         dic = pickle.load(f)
     maxlen = hypes['arch']['maxstr']
@@ -72,14 +76,14 @@ def create_queue(hypes):
     width = hypes['width']
     s, cn = hypes['arch']['maxstr'], hypes['arch']['dictlen']
     shape = [[height, width, 1], [s,cn]]
-    q = tf.FIFOQueue(capacity=50, dtypes=[tf.float32, tf.bool], shapes=shape)
+    q = tf.FIFOQueue(capacity=20, dtypes=[tf.float32, tf.bool], shapes=shape)
     return q
 
 def start_enqueue_thread(hypes,q, sess):
     image_pl = tf.placeholder(tf.float32)
-    label_pl = tf.placeholder(tf.int32)
+    label_pl = tf.placeholder(tf.bool)
 
-    enqueue_op = q.enqueue(image_pl, label_pl)
+    enqueue_op = q.enqueue((image_pl, label_pl))
     def enqueue_loop(sess, gen):
         for d in gen:
             sess.run(enqueue_op, feed_dict={image_pl:d[0], label_pl:d[1]})
@@ -104,12 +108,13 @@ def input(hypes, q, phase):
 
     return image, label
 
+import operator
 if __name__ == '__main__':
-    # if not os.path.exists('dictionary.dat'):
-    # a,d = get_dict()
-    # with open('dictionary.dat', 'wb') as f:
-    #     pickle.dump(d, f)
-    # print('Max string length:', a)
+    if not os.path.exists('dictionary.dat'):
+        a,d = get_dict()
+        with open('dictionary.dat', 'wb') as f:
+            pickle.dump(d, f)
+        print('Max string length:', a)
     import json
     import matplotlib.pyplot as plt
     with open('hyperparameters.json', 'r') as f:

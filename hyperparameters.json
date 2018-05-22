@@ -4,12 +4,12 @@
     "dictlen": 2235
   },
   "solver": {
-    "batch_size": 32,
+    "batch_size": 16,
     "max_steps": 12000,
     "learning_rate": 0.001
   },
   "logging": {
-    "disp_iter": 20,
+    "display_iter": 20,
     "save_iter": 2000
   },
   "dirs": {

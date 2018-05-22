@@ -51,7 +51,7 @@ def _print_training_status(hypes, step, loss_value, start_time, lr):
 
     logging.info(info_str.format(step=step,
                                  total_steps=hypes['solver']['max_steps'],
-                                 objective=loss_value,
+                                 loss_value=loss_value,
                                  lr_value=lr,
                                  sec_per_batch=sec_per_batch,
                                  examples_per_sec=examples_per_sec)
@@ -71,15 +71,14 @@ def run_training(hypes, graph, sess):
 
     #start clock
     start_time = time.time()
-    for step in range(hypes['train']['steps']):
+    for step in range(hypes['solver']['max_steps']):
         if step % display_iter:
-            sess.run([graph['train_op']], feed_dict=feed_dict)
+            sess['sess'].run([graph['train_op']], feed_dict=feed_dict)
 
             # Write the summaries and print an overview fairly often.
         elif step % display_iter == 0:
             # Print status to stdout.
-            _, obj_value = sess.run([graph['train_op'],
-                                      graph['obj']],
+            _, obj_value = sess['sess'].run([graph['train_op'],graph['obj']],
                                      feed_dict=feed_dict)
 
             _print_training_status(hypes, step, obj_value, start_time, lr)
@@ -92,7 +91,7 @@ def run_training(hypes, graph, sess):
             # write checkpoint to disk
             checkpoint_path = os.path.join(hypes['dirs']['output_dir'],
                                            'model.ckpt')
-            sess['saver'].save(sess, checkpoint_path, global_step=step)
+            sess['saver'].save(sess['sess'], checkpoint_path, global_step=step)
             # Reset timer
             start_time = time.time()
 

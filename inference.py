@@ -1,7 +1,7 @@
 from model import feature_extractorl, classifier
 import tensorflow as tf
 def inference(hypes, image, phase):
-    fex = feature_extractorl()
+    fex = feature_extractorl('vgg16.npy')
     feature = fex.build(image)
     string_length = hypes['arch']['maxstr']
     logits = hypes['arch']['dictlen']
